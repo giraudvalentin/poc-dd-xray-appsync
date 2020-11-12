@@ -1,9 +1,10 @@
 service:
-  name: appsync-example
+  name: poc-dd-xray
   publish: false # disable auto-publishing to the Serverless platform
 
 plugins:
   - serverless-appsync-plugin
+  # - serverless-plugin-datadog
   - serverless-webpack
 
 provider:
@@ -13,21 +14,54 @@ provider:
   runtime: nodejs10.x
   memorySize: 300
   stage: ${opt:stage, 'development'}
-
+  tags:
+    Application: poc-dd-xray
+    Environment: ${self:custom.myEnvironment.env.${self:provider.stage}}
+    env: ${self:custom.myEnvironment.env.${self:provider.stage}}-${self:provider.tags.Application}
+    Service: ${self:service}
+  stackTags:
+    Application: poc-dd-xray
+    Environment: ${self:custom.myEnvironment.env.${self:provider.stage}}
+    env: ${self:custom.myEnvironment.env.${self:provider.stage}}-${self:provider.tags.Application}
+    Service: ${self:service}
+  tracing:
+    apiGateway: true
+    lambda: true
+  apiGateway:
+    metrics: true
+  logs:
+    restApi:
+      executionLogging: false
+      format: '{ "message":"API:$context.stage account:$context.accountId $context.identity.userAgent $context.identity.sourceIp $context.requestTime $context.httpMethod $context.path $context.protocol $context.status $context.responseLatency $context.error.message $context.error.responseType", "API-Gateway": { "service":"cleo-public-api","environment":"${self:custom.myEnvironment.env.${self:provider.stage}}", "stage":"$context.stage", "error.message":"$context.error.message", "error.responseType":"$context.error.responseType", "error.validationErrorString":"$context.error.validationErrorString", "apiid":"$context.apiId", "path":"$context.path", "requestId":"$context.requestId", "requestTime":"$context.requestTimeEpoch", "http":{ "status_code":$context.status, "ip":"$context.identity.sourceIp", "userAgent":"$context.identity.userAgent", "protocol":"$context.protocol", "requestId":"$context.awsEndpointRequestId", "httpMethod":"$context.httpMethod", "responseLatency":"$context.responseLatency", "responseLength":$context.responseLength }, "lambda":{ "lambdaReturnCode":"$context.integrationStatus", "lambdaLatency":"$context.integrationLatency" }}}'
 
 functions:
   graphql:
     handler: handler.graphqlHandler
+  get_headlines:
+    role: LambdaServiceRole
+    name: ${self:custom.name_prefix}-get_headlines
+    handler: getHeadlines/index.handler
+    events:
+      - http:
+          path: /
+          method: get
+          cors: true
+    tags:
+      Unprefixed_Name: getHeadlines
 
 custom:
+  datadog:
+    apiKey: ${ssm:/cleo-bfmtv/${self:custom.myEnvironment.ssm_stage}/datadog_api_key, self:custom.config.log.datadog_key}
+    addLayers: false
+  name_prefix: ${self:provider.tags.Environment}-${self:provider.tags.Application}-${self:service}
   myEnvironment:
     ssm_stage: ${self:custom.myEnvironment.env.${self:provider.stage}}
     env:
-      development: 'dev'
-      sandbox: 'sandbox'
-      testing-bfmtv: 'testing'
-      staging-bfmtv: 'staging'
-      production-bfmtv: 'production'
+      development: "dev"
+      sandbox: "sandbox"
+      testing-bfmtv: "testing"
+      staging-bfmtv: "staging"
+      production-bfmtv: "production"
   aws:
     NODE_ENV: ${self:custom.myEnvironment.env.${self:provider.stage}}-bfmtv
     API_APPSYNC_ENDPOINT:
@@ -44,7 +78,7 @@ custom:
   DATASOURCE_ELASTIC_INDEXNAME: ${ssm:/cleo-bfmtv/${self:custom.myEnvironment.ssm_stage}/es_index_name, ''}
   accountId: poc-datadog-xray-appsync
   appSync:
-    serviceRole: 'public-api'
+    serviceRole: "public-api"
     # name:  # defaults to api
     authenticationType: API_KEY
     xrayEnabled: true
@@ -55,22 +89,44 @@ custom:
         field: fluxMsnBfmtv
         request: "request.vtl"
         response: "response.vtl"
+    logConfig:
+      loggingRoleArn: # Where AppSyncLoggingServiceRole is a role with CloudWatch
+        Fn::GetAtt:
+          - AppSyncLambdaServiceRole
+          - Arn
+      level: "ALL"
     # schema: # defaults schema.graphql
     dataSources:
       - type: AMAZON_ELASTICSEARCH
         name: ElasticSearch
-        description: 'ElasticSearch'
+        description: "ElasticSearch"
         config:
           endpoint: ${self:custom.DATASOURCE_ELASTIC_ENDPOINT}
           iamRoleStatements: # custom IAM Role statements for this DataSource. Ignored if `serviceRoleArn` is present. Auto-generated if both `serviceRoleArn` and `iamRoleStatements` are omitted
-              - Effect: 'Allow'
-                Action:
-                  - 'es:ESHttpGet'
-                  - 'es:ESHttpPost'
-                Resource:
-                  - ${self:custom.DATASOURCE_ELASTIC_ARN}/${self:custom.DATASOURCE_ELASTIC_INDEXNAME}/*
+            - Effect: "Allow"
+              Action:
+                - "es:ESHttpGet"
+                - "es:ESHttpPost"
+              Resource:
+                - ${self:custom.DATASOURCE_ELASTIC_ARN}/${self:custom.DATASOURCE_ELASTIC_INDEXNAME}/*
+
 resources:
   Resources:
+    apiGatewayId:
+      Type: 'AWS::SSM::Parameter'
+      Properties:
+        Name: '/cleo-bfmtv/${self:custom.myEnvironment.ssm_stage}/public_api_id'
+        Type: 'String'
+        Value: !Ref ApiGatewayRestApi
+    #### Creation d'une API custom
+    ApiKey:
+      Type: AWS::AppSync::ApiKey
+      Properties:
+        ApiId:
+          Fn::GetAtt:
+            - GraphQlApi
+            - ApiId
+        Description: String
     AppSyncLambdaServiceRole:
       Type: "AWS::IAM::Role"
       Properties:
@@ -78,26 +134,23 @@ resources:
         AssumeRolePolicyDocument:
           Version: "2012-10-17"
           Statement:
-            -
-              Effect: "Allow"
+            - Effect: "Allow"
               Principal:
                 Service:
                   - "appsync.amazonaws.com"
               Action:
                 - "sts:AssumeRole"
         Policies:
-          -
-            PolicyName: "Lambda-${self:custom.appSync.serviceRole}-Policy"
+          - PolicyName: "Lambda-${self:custom.appSync.serviceRole}-Policy"
             PolicyDocument:
               Version: "2012-10-17"
               Statement:
-                -
-                  Effect: "Allow"
+                - Effect: "Allow"
                   Action:
                     - "lambda:invokeFunction"
                   Resource:
-                    - "arn:aws:lambda:eu-west-1:${self:custom.accountId}:function:appsync-example-dev-graphql"
-                    - "arn:aws:lambda:eu-west-1:${self:custom.accountId}:function:appsync-example-dev-graphql:*"
+                    - "arn:aws:lambda:eu-west-1:${self:custom.accountId}:function:poc-dd-xray-dev-graphql"
+                    - "arn:aws:lambda:eu-west-1:${self:custom.accountId}:function:poc-dd-xray-dev-graphql:*"
     AppSyncESServiceRole:
       Type: "AWS::IAM::Role"
       Properties:
@@ -105,22 +158,63 @@ resources:
         AssumeRolePolicyDocument:
           Version: "2012-10-17"
           Statement:
-            -
-              Effect: "Allow"
+            - Effect: "Allow"
               Principal:
                 Service:
                   - "appsync.amazonaws.com"
               Action:
                 - "sts:AssumeRole"
         Policies:
-          -
-            PolicyName: "ElasticSearch-${self:custom.appSync.serviceRole}-Policy"
+          - PolicyName: "ElasticSearch-${self:custom.appSync.serviceRole}-Policy"
             PolicyDocument:
               Version: "2012-10-17"
               Statement:
-                -
-                  Effect: "Allow"
+                - Effect: "Allow"
                   Action:
-                    - "es:*"
+                    - "*"
                   Resource:
                     - "arn:aws:es:eu-west-1:${self:custom.accountId}:domain/appsync/*"
+    LambdaServiceRole:
+      Type: AWS::IAM::Role
+      Properties:
+        Path: /cleo/
+        RoleName: ${self:custom.name_prefix}-lambda-iam-role
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+              Action: sts:AssumeRole
+        Policies:
+          - PolicyName: ${self:custom.name_prefix}-lambda-iam-policy
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - logs:CreateLogGroup
+                    - logs:CreateLogStream
+                    - logs:PutLogEvents
+                  Resource:
+                    - 'Fn::Join':
+                        - ':'
+                        - - 'arn:aws:logs'
+                          - '${self:provider.region}'
+                          - '#{AWS::AccountId}'
+                          - 'log-group:/aws/lambda/*:*:*'
+                - Effect: Allow
+                  Action:
+                    - xray:PutTraceSegments
+                    - xray:PutTelemetryRecords
+                    - tag:GetResources
+                  Resource: '*'
+                - Effect: Allow
+                  Action:
+                    - es:ESHTTPPost
+                  Resource: ${self:custom.DATASOURCE_ELASTIC_ARN}/${self:custom.DATASOURCE_ELASTIC_INDEXNAME}/*
+                - Effect: Allow
+                  Action:
+                    - es:ESHTTPGet
+                  Resource: ${self:custom.DATASOURCE_ELASTIC_ARN}/_search/scroll/*
