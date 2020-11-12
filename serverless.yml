@@ -1,0 +1,126 @@
+service:
+  name: appsync-example
+  publish: false # disable auto-publishing to the Serverless platform
+
+plugins:
+  - serverless-appsync-plugin
+  - serverless-webpack
+
+provider:
+  name: aws
+  endpointType: REGIONAL
+  region: eu-west-1
+  runtime: nodejs10.x
+  memorySize: 300
+  stage: ${opt:stage, 'development'}
+
+
+functions:
+  graphql:
+    handler: handler.graphqlHandler
+
+custom:
+  myEnvironment:
+    ssm_stage: ${self:custom.myEnvironment.env.${self:provider.stage}}
+    env:
+      development: 'dev'
+      sandbox: 'sandbox'
+      testing-bfmtv: 'testing'
+      staging-bfmtv: 'staging'
+      production-bfmtv: 'production'
+  aws:
+    NODE_ENV: ${self:custom.myEnvironment.env.${self:provider.stage}}-bfmtv
+    API_APPSYNC_ENDPOINT:
+      Fn::GetAtt:
+        - GraphQlApi
+        - GraphQLUrl
+    API_APPSYNC_KEY:
+      Fn::GetAtt:
+        - GraphQlApiKeyDefault
+        - ApiKey
+  environment: ${self:custom.aws}
+  DATASOURCE_ELASTIC_ENDPOINT: ${ssm:/cleo-bfmtv/${self:custom.myEnvironment.ssm_stage}/aws_endpoint_es, ''}
+  DATASOURCE_ELASTIC_ARN: ${ssm:/cleo-bfmtv/${self:custom.myEnvironment.ssm_stage}/es_arn, ''}
+  DATASOURCE_ELASTIC_INDEXNAME: ${ssm:/cleo-bfmtv/${self:custom.myEnvironment.ssm_stage}/es_index_name, ''}
+  accountId: poc-datadog-xray-appsync
+  appSync:
+    serviceRole: 'public-api'
+    # name:  # defaults to api
+    authenticationType: API_KEY
+    xrayEnabled: true
+    # mappingTemplatesLocation: # defaults to mapping-templates
+    mappingTemplates:
+      - dataSource: ElasticSearch
+        type: Query
+        field: fluxMsnBfmtv
+        request: "request.vtl"
+        response: "response.vtl"
+    # schema: # defaults schema.graphql
+    dataSources:
+      - type: AMAZON_ELASTICSEARCH
+        name: ElasticSearch
+        description: 'ElasticSearch'
+        config:
+          endpoint: ${self:custom.DATASOURCE_ELASTIC_ENDPOINT}
+          iamRoleStatements: # custom IAM Role statements for this DataSource. Ignored if `serviceRoleArn` is present. Auto-generated if both `serviceRoleArn` and `iamRoleStatements` are omitted
+              - Effect: 'Allow'
+                Action:
+                  - 'es:ESHttpGet'
+                  - 'es:ESHttpPost'
+                Resource:
+                  - ${self:custom.DATASOURCE_ELASTIC_ARN}/${self:custom.DATASOURCE_ELASTIC_INDEXNAME}/*
+resources:
+  Resources:
+    AppSyncLambdaServiceRole:
+      Type: "AWS::IAM::Role"
+      Properties:
+        RoleName: "Lambda-${self:custom.appSync.serviceRole}"
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            -
+              Effect: "Allow"
+              Principal:
+                Service:
+                  - "appsync.amazonaws.com"
+              Action:
+                - "sts:AssumeRole"
+        Policies:
+          -
+            PolicyName: "Lambda-${self:custom.appSync.serviceRole}-Policy"
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                -
+                  Effect: "Allow"
+                  Action:
+                    - "lambda:invokeFunction"
+                  Resource:
+                    - "arn:aws:lambda:eu-west-1:${self:custom.accountId}:function:appsync-example-dev-graphql"
+                    - "arn:aws:lambda:eu-west-1:${self:custom.accountId}:function:appsync-example-dev-graphql:*"
+    AppSyncESServiceRole:
+      Type: "AWS::IAM::Role"
+      Properties:
+        RoleName: "ElasticSearch-${self:custom.appSync.serviceRole}"
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            -
+              Effect: "Allow"
+              Principal:
+                Service:
+                  - "appsync.amazonaws.com"
+              Action:
+                - "sts:AssumeRole"
+        Policies:
+          -
+            PolicyName: "ElasticSearch-${self:custom.appSync.serviceRole}-Policy"
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                -
+                  Effect: "Allow"
+                  Action:
+                    - "es:*"
+                  Resource:
+                    - "arn:aws:es:eu-west-1:${self:custom.accountId}:domain/appsync/*"

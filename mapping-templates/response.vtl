@@ -1,0 +1,11 @@
+#if ($ctx.error)
+  ## pass the unprocessed keys back to the caller via the `errorInfo` field
+  $util.appendError($ctx.error.message, $ctx.error.type, null, $ctx.result.data.unprocessedKeys)
+#end
+
+[
+    #foreach($entry in $context.result.hits.hits)
+      #if( $velocityCount > 1 ) , #end
+        $utils.toJson($entry.get("_source"))
+    #end
+]

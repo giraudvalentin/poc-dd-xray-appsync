@@ -1,0 +1,99 @@
+scalar AWSTimestamp
+
+type ContenuDate {
+  misajour: AWSTimestamp
+  publie: AWSTimestamp
+}
+
+type ImageFormat {
+  x: Int
+  y: Int
+  width: Int
+  height: Int
+  ratio: String
+}
+
+type Image {
+  formats: [ImageFormat]
+  credit: String
+  src: String
+  legende: String
+}
+
+type IllustrationPrincipale {
+  type: String
+  image: Image
+  video: Brightcove
+}
+
+type ImageCrop {
+  x: Int
+  y: Int
+  width: Int
+  height: Int
+}
+
+type AuteurAvatar {
+  width: Int
+  height: Int
+  src: String
+  crop: ImageCrop
+}
+
+type Auteur {
+  fonction: String
+  twitter: String
+  prenom: String
+  nom: String
+  avatar: AuteurAvatar
+}
+
+type Brightcove {
+  duree: Int
+  date_validite_debut: AWSTimestamp
+  account_id: ID!
+  date_validite_fin: AWSTimestamp
+  video_id: ID!
+  streaming: String
+}
+
+type RubriqueArborescence {
+  nom: String
+  slug: String
+}
+
+type Citation {
+  signature: String
+  image: Image
+  texte: String
+}
+
+type Contenu {
+  id: ID!
+  body: String
+  body_nbchar: String
+  chapo: String
+  date: ContenuDate
+  illustration_principale: IllustrationPrincipale
+  image_de_une: Image
+  auteurs: [Auteur]
+  signature: String
+  tags_edito: [String]
+  titre: String
+  source: String
+  url: String
+  type: String
+  soustype: String
+  brightcove: Brightcove
+  rubrique_arborescence: [RubriqueArborescence]
+  citation: Citation
+}
+
+type Query {
+  # search functionality is available in elasticsearch integration
+  fluxMsnBfmtv: [Contenu]
+}
+
+schema {
+  query: Query
+}

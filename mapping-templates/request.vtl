@@ -1,0 +1,47 @@
+{
+  "version": "2018-05-29",
+  "operation":"GET",
+  "path": "/cleo-contenu",
+  "params":{
+    "headers":{},
+    "queryString":{},
+    "body": {
+      "size": 30,
+      "query": {
+        "bool": {
+          "must": {
+            "range": { "body_nbchar": { "gte": "500" } }
+          },
+          "must_not": {
+            "bool": {
+              "filter": [
+                {
+                  "term": {
+                    "site": "www.bfmtv.com"
+                  }
+                },
+                {
+                  "prefix": {
+                    "rubrique_path": "/evenements/"
+                  }
+                },
+                {
+                  "prefix": {
+                    "rubrique_path": "/economie/"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "sort": [
+        {
+          "date.tri": {
+            "order": "DESC"
+          }
+        }
+      ]
+    }
+  }
+}
