@@ -15,12 +15,12 @@ provider:
   memorySize: 300
   stage: ${opt:stage, 'development'}
   tags:
-    Application: poc-dd-xray
+    Application: bfmtv
     Environment: ${self:custom.myEnvironment.env.${self:provider.stage}}
     env: ${self:custom.myEnvironment.env.${self:provider.stage}}-${self:provider.tags.Application}
     Service: ${self:service}
   stackTags:
-    Application: poc-dd-xray
+    Application: bfmtv
     Environment: ${self:custom.myEnvironment.env.${self:provider.stage}}
     env: ${self:custom.myEnvironment.env.${self:provider.stage}}-${self:provider.tags.Application}
     Service: ${self:service}
@@ -92,7 +92,7 @@ custom:
     logConfig:
       loggingRoleArn: # Where AppSyncLoggingServiceRole is a role with CloudWatch
         Fn::GetAtt:
-          - AppSyncLambdaServiceRole
+          - LambdaServiceRole
           - Arn
       level: "ALL"
     # schema: # defaults schema.graphql
@@ -127,53 +127,6 @@ resources:
             - GraphQlApi
             - ApiId
         Description: String
-    AppSyncLambdaServiceRole:
-      Type: "AWS::IAM::Role"
-      Properties:
-        RoleName: "Lambda-${self:custom.appSync.serviceRole}"
-        AssumeRolePolicyDocument:
-          Version: "2012-10-17"
-          Statement:
-            - Effect: "Allow"
-              Principal:
-                Service:
-                  - "appsync.amazonaws.com"
-              Action:
-                - "sts:AssumeRole"
-        Policies:
-          - PolicyName: "Lambda-${self:custom.appSync.serviceRole}-Policy"
-            PolicyDocument:
-              Version: "2012-10-17"
-              Statement:
-                - Effect: "Allow"
-                  Action:
-                    - "lambda:invokeFunction"
-                  Resource:
-                    - "arn:aws:lambda:eu-west-1:${self:custom.accountId}:function:poc-dd-xray-dev-graphql"
-                    - "arn:aws:lambda:eu-west-1:${self:custom.accountId}:function:poc-dd-xray-dev-graphql:*"
-    AppSyncESServiceRole:
-      Type: "AWS::IAM::Role"
-      Properties:
-        RoleName: "ElasticSearch-${self:custom.appSync.serviceRole}"
-        AssumeRolePolicyDocument:
-          Version: "2012-10-17"
-          Statement:
-            - Effect: "Allow"
-              Principal:
-                Service:
-                  - "appsync.amazonaws.com"
-              Action:
-                - "sts:AssumeRole"
-        Policies:
-          - PolicyName: "ElasticSearch-${self:custom.appSync.serviceRole}-Policy"
-            PolicyDocument:
-              Version: "2012-10-17"
-              Statement:
-                - Effect: "Allow"
-                  Action:
-                    - "*"
-                  Resource:
-                    - "arn:aws:es:eu-west-1:${self:custom.accountId}:domain/appsync/*"
     LambdaServiceRole:
       Type: AWS::IAM::Role
       Properties:
@@ -218,3 +171,28 @@ resources:
                   Action:
                     - es:ESHTTPGet
                   Resource: ${self:custom.DATASOURCE_ELASTIC_ARN}/_search/scroll/*
+    AppSyncESServiceRole:
+      Type: "AWS::IAM::Role"
+      Properties:
+        RoleName: ${self:custom.name_prefix}-appsync-logging-role
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: "Allow"
+              Principal:
+                Service:
+                  - "appsync.amazonaws.com"
+              Action:
+                - "sts:AssumeRole"
+        Policies:
+          - PolicyName: ${self:custom.name_prefix}-appsync-logging-policy
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action:
+#                  - logs:CreateLogGroup
+#                  - logs:CreateLogStream
+#                  - logs:PutLogEvents
+                    - "*"
+                  Resource: '*'
