@@ -32,6 +32,10 @@
     "serverless-plugin-datadog": "~0.25.0",
     "serverless-appsync-plugin": "~1.4.0",
     "serverless-webpack": "^4.1.0",
+    "pino": "~5.17.0",
+    "pino-caller": "~3.0.2",
+    "pino-datadog": "~1.2.1",
+    "pino-pretty": "~3.6.1",
     "webpack": "^3.8.1",
     "webpack-node-externals": "^1.6.0"
   }

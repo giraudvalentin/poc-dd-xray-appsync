@@ -4,7 +4,7 @@ service:
 
 plugins:
   - serverless-appsync-plugin
-  # - serverless-plugin-datadog
+  - serverless-plugin-datadog
   - serverless-webpack
 
 provider:
