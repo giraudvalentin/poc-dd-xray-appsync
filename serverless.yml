@@ -155,7 +155,7 @@ resources:
                         - ':'
                         - - 'arn:aws:logs'
                           - '${self:provider.region}'
-                          - '#{AWS::AccountId}'
+                          - '890507559531'
                           - 'log-group:/aws/lambda/*:*:*'
                 - Effect: Allow
                   Action:

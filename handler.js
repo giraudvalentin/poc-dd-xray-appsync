@@ -6,7 +6,7 @@ var AWSXRay = require("aws-xray-sdk-core");
 AWSXRay.captureHTTPsGlobal(require("http"));
 var http = require("http");
 
-exports.graphqlHandler = async (event, context, callback) => {
+exports.graphqlHandler = (event, context, callback) => {
   console.log("Received event {}", JSON.stringify(event, 3));
 
   const consumerKey = event.arguments.consumer_key;
@@ -21,7 +21,7 @@ exports.graphqlHandler = async (event, context, callback) => {
     }
   }`;
 
-  await fetch(
+  fetch(
     "https://iw2ocpdxobav7mrqcpthiu7vry.appsync-api.eu-west-1.amazonaws.com/graphql",
     {
       method: "POST",
