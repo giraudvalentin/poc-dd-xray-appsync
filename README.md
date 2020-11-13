@@ -12,5 +12,9 @@ Added handler for Datadog & xRay
 
 No AppSync Elastic queries tracing show in APM (instead of a local Elasticsearch client)
 
-- [x] Amazon headers is present in the request
-- [x] Datadog headers is present in the request
+Datadog and Amazon headers is present in the request
+
+
+## Deploy to AWS 
+
+`DATADOG_KEY=XXXXX SLS_DEBUG=* NODE_ENV=sandbox serverless deploy --verbose --stage sandbox --aws-profile sandbox`
