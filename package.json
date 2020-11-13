@@ -28,6 +28,7 @@
     "aws-xray-sdk-core": "~3.2.0",
     "datadog-lambda-js": "~2.23.0",
     "dd-trace": "~0.26.1",
+    "cleo-toolkit": "https://86b3911f102edc8279af041c28912ed9f4b20a6a@github.com/Next-Interactive/cleo-toolkit.git#v3.0.0-alpha.4",
     "got": "~9.6.0",
     "serverless-plugin-datadog": "~0.25.0",
     "serverless-appsync-plugin": "~1.4.0",
